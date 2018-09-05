@@ -1,0 +1,139 @@
+version: "3"
+services:
+
+  # Define the Web App (Django)
+  # web:
+  #   build: web/
+  #   restart: always
+  #   expose:
+  #     - "8000"
+  #   ports:
+  #     - "8000:8000"
+  #   links:
+  #     - user-api
+  #     - transaction-api
+  #   deploy:
+  #     replicas: 3
+  #     resources:
+  #       limits:
+  #         cpus: "0.1"
+  #         memory: 50M
+  #     restart_policy:
+  #       condition: on-failure
+  #   networks:
+  #     - webnet
+
+  # Define the User API (Flask)
+  user-api:
+    build: api-user/
+    restart: always
+    expose:
+      - "8001"
+    ports:
+      - "8001:8001"
+    depends_on:
+      - redis
+      - mongodb
+    links:
+      - redis
+      - mongodb
+    environment:
+      FLASK_DEBUG: 1
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 50M
+      restart_policy:
+        condition: on-failure
+    networks:
+      - webnet
+
+
+  # Define the Transaction API (Flask)
+  transaction-api:
+    build: api-transaction/
+    restart: always
+    expose:
+      - "8002"
+    ports:
+      - "8002:8002"
+    depends_on:
+      - redis
+      - mongodb
+    links:
+      - redis
+      - mongodb
+    environment:
+      FLASK_DEBUG: 1
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 50M
+      restart_policy:
+        condition: on-failure
+    networks:
+      - webnet
+
+
+  # Define the NGINX forward proxy container
+  nginx:
+    build: nginx/
+    restart: always
+    ports:
+      - "80:80"
+    deploy:
+      replicas: 3
+    depends_on:
+      # - web
+      - user-api
+      - transaction-api
+    networks:
+      - webnet
+
+
+  # Define the MongoDB
+  mongodb:
+    image: mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    networks:
+      - webnet
+     
+
+  # Enable visualizer (Built by Docker to view your nodes -- only in Docker Swarm)
+  visualizer:
+    image: dockersamples/visualizer:stable
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+    networks:
+      - webnet
+
+
+  # Enable redis (Persist Data)
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - /home/docker/data:/data
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+    command: redis-server --appendonly yes
+    networks:
+      - webnet
+
+
+# Define the network
+networks:
+  webnet:
